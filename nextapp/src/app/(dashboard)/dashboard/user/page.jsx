@@ -3,7 +3,7 @@ import React from "react";
 
 const user = () => {
   return (
-    <div>
+    <div className="h-screen">
       <h1>Dashboard users</h1>
       <ul className="mt-10">
         <li>
