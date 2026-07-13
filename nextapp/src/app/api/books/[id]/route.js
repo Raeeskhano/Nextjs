@@ -17,4 +17,4 @@ export async function DELETE(request, context = { params }) {
   return NextResponse.json(books);
 }
 
-
+;''
