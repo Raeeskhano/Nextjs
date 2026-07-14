@@ -1,13 +1,16 @@
 import React from "react";
-import LightRays from "./components/LightRays";
 
-const home = () => {
+const page = () => {
   return (
-    <>
-      <LightRays />
-      <h1>home</h1>
-    </>
+    <section>
+      <h1 className="text-center tracking-tighter">
+        The Hub For Every Dev <br /> Event You Can't Miss
+      </h1>
+      <p className="text-center mt-5">
+        Hackathons, Meetups, Conferences, All in One Place
+      </p>
+    </section>
   );
 };
 
-export default home;
+export default page;

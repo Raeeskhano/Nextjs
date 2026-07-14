@@ -1,30 +1,9 @@
 "use client";
 
-import LightRays from "./LightRays";
-
 import { useRef, useEffect, useState } from "react";
 import { Renderer, Program, Triangle, Mesh } from "ogl";
-import "./LightRays.css";
 
-const DEFAULT_COLOR = "#ffffff";
-
-<div style={{ width: "100%", height: "600px", position: "relative" }}>
-  <LightRays
-    raysOrigin="top-center"
-    raysColor="#ffffff"
-    raysSpeed={1}
-    lightSpread={0.5}
-    rayLength={3}
-    followMouse={true}
-    mouseInfluence={0.1}
-    noiseAmount={0}
-    distortion={0}
-    className="custom-rays"
-    pulsating={false}
-    fadeDistance={1}
-    saturation={1}
-  />
-</div>;
+export const DEFAULT_COLOR = "#ffffff";
 
 const hexToRgb = (hex) => {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -44,6 +23,8 @@ const getAnchorAndDir = (origin, w, h) => {
       return { anchor: [0, -outside * h], dir: [0, 1] };
     case "top-right":
       return { anchor: [w, -outside * h], dir: [0, 1] };
+    case "top-center-offset":
+      return { anchor: [0.5 * w + 0.2 * w, -outside * h], dir: [-0.2, 1] };
     case "left":
       return { anchor: [-outside * w, 0.5 * h], dir: [1, 0] };
     case "right":
@@ -176,13 +157,13 @@ float rayStrength(vec2 raySource, vec2 rayRefDirection, vec2 coord,
   float cosAngle = dot(dirNorm, rayRefDirection);
 
   float distortedAngle = cosAngle + distortion * sin(iTime * 2.0 + length(sourceToCoord) * 0.01) * 0.2;
-  
+
   float spreadFactor = pow(max(distortedAngle, 0.0), 1.0 / max(lightSpread, 0.001));
 
   float distance = length(sourceToCoord);
   float maxDistance = iResolution.x * rayLength;
   float lengthFalloff = clamp((maxDistance - distance) / maxDistance, 0.0, 1.0);
-  
+
   float fadeFalloff = clamp((iResolution.x * fadeDistance - distance) / (iResolution.x * fadeDistance), 0.5, 1.0);
   float pulse = pulsating > 0.5 ? (0.8 + 0.2 * sin(iTime * speed * 3.0)) : 1.0;
 
@@ -197,7 +178,7 @@ float rayStrength(vec2 raySource, vec2 rayRefDirection, vec2 coord,
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   vec2 coord = vec2(fragCoord.x, iResolution.y - fragCoord.y);
-  
+
   vec2 finalRayDir = rayDir;
   if (mouseInfluence > 0.0) {
     vec2 mouseScreenPos = mousePos * iResolution.xy;
@@ -433,7 +414,7 @@ void main() {
   return (
     <div
       ref={containerRef}
-      className={`light-rays-container ${className}`.trim()}
+      className={`pointer-events-none relative z-[3] h-full w-full overflow-hidden ${className}`.trim()}
     />
   );
 };
