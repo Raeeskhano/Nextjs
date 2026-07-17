@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { v2 as cloudinary } from "cloudinary";
 import dbConnect from "../../../../lib/mongodb";
 import Event from "../../../../database/event.model";
+import { events as fallbackEvents } from "../../../../lib/constants";
 
 export async function POST(req = NextRequest) {
+  const { v2: cloudinary } = await import("cloudinary");
   try {
     await dbConnect();
 
@@ -29,7 +30,7 @@ export async function POST(req = NextRequest) {
       );
 
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = buffer.from(arrayBuffer);
+    const buffer = Buffer.from(arrayBuffer);
 
     const uploadResult = await new Promise((resolve, reject) => {
       cloudinary.uploader
@@ -64,11 +65,21 @@ export async function GET() {
   try {
     await dbConnect();
 
-    const events = Event.find().sort({ createdAt: -1 });
+    const events = await Event.find().sort({ createdAt: -1 });
+
+    return NextResponse.json(
+      { message: "Events fetched successfully", events },
+      { status: 200 },
+    );
   } catch (error) {
-    NextResponse.json(
-      { message: "Event fetching failed", error },
-      { status: 500 },
+    console.error("GET /api/events failed:", error);
+    return NextResponse.json(
+      {
+        message: "Event fetching failed; returning fallback events.",
+        events: fallbackEvents,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      { status: 200 },
     );
   }
 }
