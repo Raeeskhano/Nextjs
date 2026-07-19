@@ -1,18 +1,15 @@
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
+import { Suspense } from "react";
+import EventDetails from "@/components/EventDetails";
 
-const page = async ({ params }) => {
-  const { slug } = await params;
-  const request = await fetch(`${BASE_URL}/api/events/${slug}`);
-  const { event } = await request.json();
+const EventDetailsPage = async ({ params }) => {
+  const { slug } = params;
 
-  if (!event) return request.json();
   return (
-    <section>
-      <h1>
-        Event Details: <br /> {slug}
-      </h1>
-    </section>
+    <main>
+      <Suspense fallback={<div>Loading...</div>}>
+        <EventDetails slug={slug} />
+      </Suspense>
+    </main>
   );
 };
-
-export default page;
+export default EventDetailsPage;

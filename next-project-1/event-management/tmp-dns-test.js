@@ -1,1 +1,0 @@
-const dns=require(" dns\); console.log(\before\, dns.getServers()); dns.setServers([\8.8.8.8\, \1.1.1.1\]); console.log(\after\, dns.getServers()); dns.resolveSrv(\_mongodb._tcp.dev-event.wacqyw1.mongodb.net\, (err, rec) => { console.log(\err\, err && err.message); console.log(\rec\, JSON.stringify(rec)); });

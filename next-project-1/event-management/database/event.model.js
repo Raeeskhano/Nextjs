@@ -1,34 +1,34 @@
-import mongoose from "mongoose";
+import { Schema, model, models } from "mongoose";
 
-const eventSchema = new mongoose.Schema(
+const EventSchema = new Schema(
   {
     title: {
       type: String,
       required: [true, "Title is required"],
       trim: true,
-      minlength: [3, "Title must be at least 3 characters long"],
+      maxlength: [100, "Title cannot exceed 100 characters"],
     },
     slug: {
       type: String,
       unique: true,
-      trim: true,
       lowercase: true,
+      trim: true,
     },
     description: {
       type: String,
       required: [true, "Description is required"],
       trim: true,
-      minlength: [10, "Description must be at least 10 characters long"],
+      maxlength: [1000, "Description cannot exceed 1000 characters"],
     },
     overview: {
       type: String,
       required: [true, "Overview is required"],
       trim: true,
-      minlength: [10, "Overview must be at least 10 characters long"],
+      maxlength: [500, "Overview cannot exceed 500 characters"],
     },
     image: {
       type: String,
-      required: [true, "Image is required"],
+      required: [true, "Image URL is required"],
       trim: true,
     },
     venue: {
@@ -44,17 +44,18 @@ const eventSchema = new mongoose.Schema(
     date: {
       type: String,
       required: [true, "Date is required"],
-      trim: true,
     },
     time: {
       type: String,
       required: [true, "Time is required"],
-      trim: true,
     },
     mode: {
       type: String,
       required: [true, "Mode is required"],
-      enum: ["online", "offline", "hybrid"],
+      enum: {
+        values: ["online", "offline", "hybrid"],
+        message: "Mode must be either online, offline, or hybrid",
+      },
     },
     audience: {
       type: String,
@@ -65,8 +66,8 @@ const eventSchema = new mongoose.Schema(
       type: [String],
       required: [true, "Agenda is required"],
       validate: {
-        validator: (value) => Array.isArray(value) && value.length > 0,
-        message: "Agenda must contain at least one item",
+        validator: (v) => v.length > 0,
+        message: "At least one agenda item is required",
       },
     },
     organizer: {
@@ -78,46 +79,90 @@ const eventSchema = new mongoose.Schema(
       type: [String],
       required: [true, "Tags are required"],
       validate: {
-        validator: (value) => Array.isArray(value) && value.length > 0,
-        message: "Tags must contain at least one item",
+        validator: (v) => v.length > 0,
+        message: "At least one tag is required",
       },
     },
   },
   {
-    timestamps: true,
+    timestamps: true, // Auto-generate createdAt and updatedAt
   },
 );
 
-// Create a URL-friendly slug from the title and only regenerate it when needed.
-eventSchema.pre("save", function (next) {
-  if (this.isModified("title")) {
-    this.slug = this.title
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
+// Pre-save hook for slug generation and data normalization
+EventSchema.pre("save", function () {
+  const event = this;
+
+  // Generate slug only if title changed or document is new
+  if (event.isModified("title") || event.isNew) {
+    event.slug = generateSlug(event.title);
   }
 
-  // Normalize the date to ISO format and keep time in a consistent 24-hour format.
-  if (this.isModified("date") || this.isModified("time")) {
-    const normalizedDate = new Date(this.date);
-    if (!Number.isNaN(normalizedDate.getTime())) {
-      this.date = normalizedDate.toISOString().split("T")[0];
-    }
-
-    if (this.time) {
-      const [hours, minutes] = this.time.match(/\d{1,2}/g) || [];
-      if (hours && minutes) {
-        const normalizedTime = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-        this.time = normalizedTime;
-      }
-    }
+  // Normalize date to ISO format if it's not already
+  if (event.isModified("date")) {
+    event.date = normalizeDate(event.date);
   }
 
-  next();
+  // Normalize time format (HH:MM)
+  if (event.isModified("time")) {
+    event.time = normalizeTime(event.time);
+  }
 });
 
-eventSchema.pre("validate", function (next) {
+// Helper function to generate URL-friendly slug
+function generateSlug(title) {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "") // Remove special characters
+    .replace(/\s+/g, "-") // Replace spaces with hyphens
+    .replace(/-+/g, "-") // Replace multiple hyphens with single hyphen
+    .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+}
+
+// Helper function to normalize date to ISO format
+function normalizeDate(dateString) {
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) {
+    throw new Error("Invalid date format");
+  }
+  return date.toISOString().split("T")[0]; // Return YYYY-MM-DD format
+}
+
+// Helper function to normalize time format
+function normalizeTime(timeString) {
+  // Handle various time formats and convert to HH:MM (24-hour format)
+  const timeRegex = /^(\d{1,2}):(\d{2})(\s*(AM|PM))?$/i;
+  const match = timeString.trim().match(timeRegex);
+
+  if (!match) {
+    throw new Error("Invalid time format. Use HH:MM or HH:MM AM/PM");
+  }
+
+  let hours = parseInt(match[1]);
+  const minutes = match[2];
+  const period = match[4]?.toUpperCase();
+
+  if (period) {
+    // Convert 12-hour to 24-hour format
+    if (period === "PM" && hours !== 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+  }
+
+  if (
+    hours < 0 ||
+    hours > 23 ||
+    parseInt(minutes) < 0 ||
+    parseInt(minutes) > 59
+  ) {
+    throw new Error("Invalid time values");
+  }
+
+  return `${hours.toString().padStart(2, "0")}:${minutes}`;
+}
+
+// Pre-validate hook for required fields (throws to abort)
+EventSchema.pre("validate", function () {
   const requiredFields = [
     "title",
     "description",
@@ -133,7 +178,6 @@ eventSchema.pre("validate", function (next) {
     "organizer",
     "tags",
   ];
-
   for (const field of requiredFields) {
     const value = this[field];
     if (
@@ -141,15 +185,17 @@ eventSchema.pre("validate", function (next) {
       value === null ||
       (typeof value === "string" && !value.trim())
     ) {
-      return next(new Error(`${field} is required and cannot be empty`));
+      throw new Error(`${field} is required and cannot be empty`);
     }
   }
-
-  next();
 });
 
-eventSchema.index({ slug: 1 }, { unique: true });
+// Create unique index on slug for better performance
+EventSchema.index({ slug: 1 }, { unique: true });
 
-const Event = mongoose.models.Event || mongoose.model("Event", eventSchema);
+// Create compound index for common queries
+EventSchema.index({ date: 1, mode: 1 });
+
+const Event = models.Event || model("Event", EventSchema);
 
 export default Event;

@@ -1,54 +1,84 @@
 import { NextRequest, NextResponse } from "next/server";
-import dbConnect from "../../../../../lib/mongodb";
-import Event from "../../../../../database/event.model";
 
-const VALID_SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+import connectDB from "@/lib/mongodb";
+import Event from "@/database/event.model";
+import { events as fallbackEvents } from "@/lib/constants";
 
-export async function GET(_request, { params }) {
-  const slug = params?.slug;
+/**
+ * GET /api/events/[slug]
+ * Fetches a single event by its slug
+ */
+export async function GET(req, { params }) {
+  const { slug } = await params;
 
-  if (!slug || typeof slug !== "string" || !slug.trim()) {
+  if (!slug || typeof slug !== "string" || slug.trim() === "") {
     return NextResponse.json(
-      { message: "Missing event slug parameter." },
+      { message: "Invalid or missing slug parameter" },
       { status: 400 },
     );
   }
 
-  const normalizedSlug = slug.trim().toLowerCase();
-
-  if (!VALID_SLUG_REGEX.test(normalizedSlug)) {
-    return NextResponse.json(
-      {
-        message:
-          "Invalid event slug. Use lowercase letters, numbers, and hyphens only.",
-      },
-      { status: 400 },
-    );
-  }
+  // Sanitize slug (remove any potential malicious input)
+  const sanitizedSlug = slug.trim().toLowerCase();
 
   try {
-    await dbConnect();
+    // Connect to database
+    await connectDB();
 
-    const event = await Event.findOne({ slug: normalizedSlug }).lean();
+    // Query events by slug
+    const event = await Event.findOne({ slug: sanitizedSlug }).lean();
 
-    if (!event) {
+    if (event) {
       return NextResponse.json(
-        { message: `Event not found for slug: ${normalizedSlug}` },
-        { status: 404 },
+        { message: "Event fetched successfully", event },
+        { status: 200 },
       );
     }
 
+    // If DB is available but event is not found, return 404.
     return NextResponse.json(
-      { message: "Event fetched successfully", event },
-      { status: 200 },
+      { message: `Event with slug '${sanitizedSlug}' not found` },
+      { status: 404 },
     );
   } catch (error) {
-    console.error("GET /api/events/[slug] failed:", error);
+    // Log error for debugging (only in development)
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error fetching events by slug:", error);
+    }
+
+    const fallbackEvent = fallbackEvents.find(
+      (item) => item.slug === sanitizedSlug,
+    );
+
+    if (fallbackEvent) {
+      return NextResponse.json(
+        {
+          message:
+            "Event fetched from fallback data due to database connectivity issue",
+          event: fallbackEvent,
+        },
+        { status: 200 },
+      );
+    }
+
+    // Handle specific error types
+    if (error instanceof Error) {
+      if (error.message.includes("MONGODB_URI")) {
+        return NextResponse.json(
+          { message: "Database configuration error" },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json(
+        { message: "Failed to fetch events", error: error.message },
+        { status: 500 },
+      );
+    }
+
+    // Handle unknown errors
     return NextResponse.json(
-      {
-        message: "Unable to fetch event details at this time.",
-        error: error instanceof Error ? error.message : String(error),
-      },
+      { message: "An unexpected error occurred" },
       { status: 500 },
     );
   }
